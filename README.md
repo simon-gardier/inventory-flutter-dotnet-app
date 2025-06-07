@@ -6,11 +6,11 @@
 /_/  /_/\__, / |___/\___/_/ /_/\__/\____/_/   \__, /  /_/  |_/ .___/ .___/ 
        /____/                                /____/         /_/   /_/      
 ```
-<video src="misc/pres.mp4" controls autoplay width="600">
-    Your browser does not support the video tag.
-</video>
+
+https://github.com/user-attachments/assets/4e869afa-78b8-4e5e-aa90-8acb3f2211c6
 
 ## 🧪Documentation
+
 ### Tech stack (app)
 - [Flutter](https://jira.montefiore.ulg.ac.be/xwiki/wiki/team0524/view/Technologies/Technology%20Choices%20for%20MyInventory%20System/).
 
