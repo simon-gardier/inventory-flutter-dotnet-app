@@ -1,0 +1,27 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyVentoryApi", "MyVentoryApi\MyVentoryApi.csproj", "{2A2C6A88-BB61-4D30-A079-5074CAC828BB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyVentoryApi.Tests", "MyVentoryApi.Tests\MyVentoryApi.Tests.csproj", "{3A241B6C-0648-4E99-B73C-D8393D24757E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2A2C6A88-BB61-4D30-A079-5074CAC828BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A2C6A88-BB61-4D30-A079-5074CAC828BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A2C6A88-BB61-4D30-A079-5074CAC828BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A2C6A88-BB61-4D30-A079-5074CAC828BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A241B6C-0648-4E99-B73C-D8393D24757E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A241B6C-0648-4E99-B73C-D8393D24757E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A241B6C-0648-4E99-B73C-D8393D24757E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A241B6C-0648-4E99-B73C-D8393D24757E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

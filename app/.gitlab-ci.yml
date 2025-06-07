@@ -1,0 +1,147 @@
+variables:
+  IMAGE_TAG: latest
+
+  APP_CONTAINER_PATH: app-container
+  WEB_CONTAINER_PATH: web-container
+
+  REPO_PATH: $CI_REGISTRY/speam/2024-2025/team5/myventoryapp
+  APP_REPO_TAG: ${REPO_PATH}/${APP_CONTAINER_PATH}:${IMAGE_TAG}
+  WEB_REPO_TAG: ${REPO_PATH}/${WEB_CONTAINER_PATH}:${IMAGE_TAG}
+
+  FLUTTER_DIR: MyVentoryApp
+
+  # The next set of variables is critical for proper Docker-in-docker execution on the OpenShift Gitlab Runner
+  REGISTRY_HOST: gitlab.uliege.be:5050
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_TLS_VERIFY: 1
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: always
+    - when: never
+
+stages:
+  - tests
+  - build
+  - package
+  - deploy
+
+code-analysis:
+  stage: tests
+  image: instrumentisto/flutter:latest # https://hub.docker.com/r/instrumentisto/flutter
+  tags:
+    - openshift
+    - docker
+  script:
+    - cd $FLUTTER_DIR
+    - flutter analyze
+  allow_failure: true
+
+app-integration-tests:
+  stage: tests
+  image: alpine:latest
+  script:
+    - echo "Not possible to run the tests without KVM... See Job app-integration-tests issue section on https://jira.montefiore.ulg.ac.be/xwiki/wiki/team0524/view/Infra/# for more details"
+
+sonar:
+  stage: tests
+  image: instrumentisto/flutter:latest
+  tags:
+    - openshift
+    - docker
+  script:
+    - export SONAR_SCANNER_VERSION=6.2.1.4610
+    - export SONAR_SCANNER_HOME=$HOME/.sonar/sonar-scanner-$SONAR_SCANNER_VERSION-linux-x64
+    - curl --create-dirs -sSLo $HOME/.sonar/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux-x64.zip
+    - unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
+    - export PATH=$SONAR_SCANNER_HOME/bin:$PATH
+    - sonar-scanner -Dsonar.organization=$SONAR_ORGANIZATION -Dsonar.projectKey=$SONAR_PROJECT -Dsonar.sources=. -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.c.file.suffixes=- -Dsonar.cpp.file.suffixes=- -Dsonar.objc.file.suffixes=-
+  allow_failure: true
+
+# Build the flutter app
+# Put the apk file in the artifacts
+build-app:
+  stage: build
+  image: instrumentisto/flutter:latest # https://hub.docker.com/r/instrumentisto/flutter
+  tags:
+    - openshift
+    - docker
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+  script:
+    - cd $FLUTTER_DIR
+    - flutter clean
+    - flutter pub get
+    - flutter build apk --debug --dart-define=API_BASE_URL=https://myventory-api-route-myventory.apps.speam.montefiore.uliege.be/api
+    - mv build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/app-release.apk
+  artifacts:
+    paths:
+      - $FLUTTER_DIR/build/app/outputs/flutter-apk/app-release.apk
+
+# Build the flutter website
+# Put the website in the artifacts
+build-web:
+  stage: build
+  image: instrumentisto/flutter:latest # https://hub.docker.com/r/instrumentisto/flutter
+  tags:
+    - openshift
+    - docker
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+  script:
+    - cd $FLUTTER_DIR
+    - flutter clean
+    - flutter pub get
+    - flutter build web --release --dart-define=API_BASE_URL=https://myventory-api-route-myventory.apps.speam.montefiore.uliege.be/api
+  artifacts:
+    paths:
+      - $FLUTTER_DIR/build/web
+
+# Build an nginx image (see Dockerfile) that contains an http server and the apk file
+package:
+  stage: package
+  image: docker:20.10.16
+  services:
+    - docker:20.10.16-dind # the required docker-in-docker daemon version
+  tags:
+    - docker
+    - openshift
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+  before_script:
+    - sleep 10 && docker info  # give time for starting the service and check in order
+    - echo $CI_REGISTRY_PASSWORD | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+  script:
+    - docker build --network host -t $APP_REPO_TAG -f Dockerfile.apk .
+    - docker push $APP_REPO_TAG
+
+    - docker build --network host -t $WEB_REPO_TAG -f Dockerfile.web .
+    - docker push $WEB_REPO_TAG
+
+deploy:
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+  script:
+    - echo "... placeholder for an OpenShift/kubernetes deployment trigger that is not yet configured ..."
+    - echo "Sorry! at this moment you have to force a redeployment manually via the OpenShift console"
+    - echo "END"

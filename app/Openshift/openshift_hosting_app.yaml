@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myventoryapp-app-deployment
+  namespace: myventory
+  labels:
+    app: myventoryapp-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myventoryapp-app
+  template:
+    metadata:
+      labels:
+        app: myventoryapp-app
+    spec:
+      containers:
+        - name: myventoryapp-app
+          image: gitlab.uliege.be:5050/speam/2024-2025/team5/myventoryapp/app-container:latest
+          ports:
+            - containerPort: 80
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 1
+              ephemeral-storage: "1Gi"
+            limits:
+              memory: 1Gi
+              cpu: 1
+              ephemeral-storage: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 1
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: myventoryapp-pull-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myventoryapp-app-service
+  namespace: myventory
+spec:
+  selector:
+    app: myventoryapp-app
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: myventoryapp-app-route
+  namespace: myventory
+spec:
+  to:
+    kind: Service
+    name: myventoryapp-app-service
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: myventory-app-hpa
+  namespace: myventory
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: myventoryapp-app-deployment
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70

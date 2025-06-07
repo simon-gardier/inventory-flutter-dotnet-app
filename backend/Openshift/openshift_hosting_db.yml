@@ -1,0 +1,97 @@
+---
+# Only used to recreate the secret, no "myventory-db-secret" secret should already exist.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myventory-db-secret
+  namespace: myventory
+type: Opaque
+stringData:
+  POSTGRES_DB: "MyVentory"
+  POSTGRES_USER: "TO BE FILLED WITH REAL SECRET USER" #done during import in oopenshift, see myventory-db-secret on "Secrets" page: https://console-openshift-console.apps.speam.montefiore.uliege.be/k8s/ns/myventory/core~v1~Secret
+  POSTGRES_PASSWORD: "TO BE FILLED WITH REAL SECRET PASSWORD" #done during import in oopenshift, see myventory-db-secret on "Secrets" page: https://console-openshift-console.apps.speam.montefiore.uliege.be/k8s/ns/myventory/core~v1~Secret
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: myventory-postgres-pvc
+  namespace: myventory
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myventory-db-deployment
+  namespace: myventory
+  labels:
+    app: myventory-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myventory-db
+  template:
+    metadata:
+      labels:
+        app: myventory-db
+    spec:
+      containers:
+        - name: myventory-db
+          image: postgres:17.4
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: myventory-db-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: myventory-db-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: myventory-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 1
+              ephemeral-storage: "1Gi"
+            limits:
+              memory: 1Gi
+              cpu: 1
+              ephemeral-storage: "1Gi"
+          volumeMounts:
+            - name: myventory-db-storage
+              mountPath: /var/lib/postgresql/data
+      automountServiceAccountToken: false
+      volumes:
+        - name: myventory-db-storage
+          persistentVolumeClaim:
+            claimName: myventory-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myventory-db-service
+  namespace: myventory
+spec:
+  selector:
+    app: myventory-db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432

@@ -1,0 +1,141 @@
+variables:
+  IMAGE_TAG: latest
+
+  API_CONTAINER_PATH: api-container
+  
+  REPO_PATH: $CI_REGISTRY/speam/2024-2025/team5/myventorybackend
+  API_REPO_TAG: ${REPO_PATH}/${API_CONTAINER_PATH}:${IMAGE_TAG}
+
+  CODE_FOLDER: ./MyVentoryApi
+  TEST_FOLDER: ./MyVentoryApi.Tests
+  TEST_RESULTS_DIR: TestResults
+
+  # Docker-in-Docker configuration for OpenShift GitLab Runner
+  REGISTRY_HOST: gitlab.uliege.be:5050
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_TLS_VERIFY: 1
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: always
+    - when: never
+
+stages:
+  - tests
+  - build
+  - deploy
+
+code-analysis:
+  stage: tests
+  image: docker/compose:latest
+  tags:
+    - openshift
+    - docker
+  services:
+    - docker:20.10.16-dind # Necessary for Docker-in-Docker
+  before_script:
+    - sleep 10 && docker info # Wait for Docker service to start
+    - apk add --no-cache bash curl icu-libs krb5-libs libgcc libintl libssl1.1 libstdc++ zlib
+    - curl -L https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
+    - chmod +x dotnet-install.sh
+    - ./dotnet-install.sh --version 9.0.100 -InstallDir /usr/share/dotnet
+    - export PATH="$PATH:/usr/share/dotnet"
+  script:
+    - dotnet restore
+    - dotnet build /p:TreatWarningsAsErrors=true
+
+api-integration-tests:
+  stage: tests
+  image: docker/compose:latest
+  tags:
+    - openshift
+    - docker
+  services:
+    - docker:20.10.16-dind # Necessary for Docker-in-Docker
+  before_script:
+    - sleep 10 && docker info # Wait for Docker service to start
+    - apk add --no-cache bash curl icu-libs krb5-libs libgcc libintl libssl1.1 libstdc++ zlib
+    - curl -L https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
+    - chmod +x dotnet-install.sh
+    - ./dotnet-install.sh --version 9.0.100 -InstallDir /usr/share/dotnet
+    - export PATH="$PATH:/usr/share/dotnet"
+  script:
+    - docker-compose up -d
+    - until docker exec my-ventory-database pg_isready -U "$POSTGRES_USER"; do echo "Waiting for Postgres..."; sleep 2; done
+    - dotnet restore
+    - cd $TEST_FOLDER
+    - dotnet test --logger "console;verbosity=detailed" --logger "junit;LogFileName=test-results.xml"
+    - docker-compose down
+  artifacts:
+    reports:
+      junit: $TEST_FOLDER/$TEST_RESULTS_DIR/test-results.xml
+    paths:
+      - $TEST_FOLDER/$TEST_RESULTS_DIR/
+    expire_in: 1 week
+
+sonar:
+  stage: tests
+  image: mcr.microsoft.com/dotnet/sdk:9.0
+  tags:
+    - openshift
+    - docker
+  services:
+    - docker:20.10.16-dind # Necessary for Docker-in-Docker
+  before_script:
+    - apt-get update
+    - apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+    - curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    - apt-get update
+    - apt-get install -y docker-ce-cli
+    - sleep 10 && docker info
+  script:
+    - dotnet tool install --global dotnet-sonarscanner
+    - export PATH="$PATH:/root/.dotnet/tools"
+    - dotnet sonarscanner begin /k:"$SONAR_PROJECT" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="$SONAR_HOST_URL" /o:"$SONAR_ORGANIZATION"
+    - dotnet restore
+    - dotnet build
+    - dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+  allow_failure: true
+
+build:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - docker:20.10.16-dind # Necessary for Docker-in-Docker
+  tags:
+    - docker
+    - openshift
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+  before_script:
+    - sleep 10 && docker info # Wait for Docker service to start
+    - echo $CI_REGISTRY_PASSWORD | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+    - apk add --no-cache curl
+  script:
+    - docker build --network host -t $API_REPO_TAG -f Dockerfile $CODE_FOLDER
+    - docker push $API_REPO_TAG
+
+deploy:
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+  script:
+    - echo "... placeholder for an OpenShift/kubernetes deployment trigger that is not yet configured ..."
+    - echo "Sorry! at this moment you have to force a redeployment manually via the OpenShift console"
+    - echo "END"

@@ -1,0 +1,170 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myventory-api-deployment
+  namespace: myventory
+  labels:
+    app: myventory-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myventory-api
+  template:
+    metadata:
+      labels:
+        app: myventory-api
+    spec:
+      containers:
+        - name: myventory-api
+          image: gitlab.uliege.be:5050/speam/2024-2025/team5/myventorybackend/api-container:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: DATABASE_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: database-connection-string
+                  key: DATABASE_CONNECTION_STRING
+            - name: OCR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ocr-api-credentials
+                  key: OCR_API_KEY
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret-key
+                  key: JWT_SECRET_KEY
+            - name: JWT_ISSUER
+              value: "MyVentoryApi"
+            - name: JWT_AUDIENCE
+              value: "MyVentoryClients"
+            - name: JWT_EXPIRY_MINUTES
+              value: "60"
+            - name: SENDGRID_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sendgrid-api-key
+                  key: SENDGRID_API_KEY
+            - name: EMAIL_FROM
+              value: "myventory5@gmail.com"
+            - name: EMAIL_FROM_NAME
+              value: "MyVentory"
+            - name: EMAIL_VERIFICATION_TEMPLATE_ID
+              value: "d-915c5ba00613483185e4bfe4a243aaf5"
+            - name: PASSWORD_RESET_TEMPLATE_ID
+              value: "d-70202e42d5624a78acb041ebc6ed3c68"
+            - name: EMAIL_LENDING_BORROWER_TEMPLATE_ID
+              value: "d-7f4f2c6d21bf41dcba0cf680995354ef"
+            - name: BACKEND_BASE_URL
+              value: "https://myventory-api-route-myventory.apps.speam.montefiore.uliege.be"
+            - name: WEBSITE_BASE_URL
+              value: "https://myventoryapp-web-route-myventory.apps.speam.montefiore.uliege.be"
+            - name: ASPTNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: GOOGLE_WEB_CLIENT_ID
+              value: "1012028592965-7fceaafskn496sikrl9muftsjqknjkqa.apps.googleusercontent.com"
+            - name: GOOGLE_WEB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: google-web-client-secret
+                  key: GOOGLE_WEB_CLIENT_SECRET
+            - name: GOOGLE_ANDROID_CLIENT_ID
+              value: "1012028592965-8pl1m3gr3baig29unj3tkr19j7aigl8f.apps.googleusercontent.com"
+            - name: GOOGLE_ANDROID_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: google-android-client-secret
+                  key: GOOGLE_ANDROID_CLIENT_SECRET
+            - name: GOOGLE_WEB_CALLBACK_URL
+              value: "https://myventory-api-route-myventory.apps.speam.montefiore.uliege.be/api/auth/callback/google"
+            - name: GOOGLE_ANDROID_CALLBACK_URL
+              value: "https://myventory-api-route-myventory.apps.speam.montefiore.uliege.be/api/auth/callback/google"
+            - name: BARCODELOOKUP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: barcode-api-key
+                  key: BARCODELOOKUP_API_KEY
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 1
+              ephemeral-storage: "1Gi"
+            limits:
+              memory: 1Gi
+              cpu: 1
+              ephemeral-storage: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 1
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: myventorybackend-pull-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myventory-api-service
+  namespace: myventory
+spec:
+  selector:
+    app: myventory-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: myventory-api-service
+  namespace: myventory
+spec:
+  to:
+    kind: Service
+    name: myventory-api-service
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: myventory-api-hpa
+  namespace: myventory
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: myventory-api-deployment
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70

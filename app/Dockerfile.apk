@@ -1,0 +1,4 @@
+FROM nginx:alpine
+COPY MyVentoryApp/build/app/outputs/flutter-apk/app-release.apk /usr/share/nginx/html/app-release.apk
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
