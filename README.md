@@ -6,7 +6,9 @@
 /_/  /_/\__, / |___/\___/_/ /_/\__/\____/_/   \__, /  /_/  |_/ .___/ .___/ 
        /____/                                /____/         /_/   /_/      
 ```
-# MyVentory's app
+<video src="misc/pres.mp4" controls autoplay width="600">
+    Your browser does not support the video tag.
+</video>
 
 ## 🧪Documentation
 ### Tech stack (app)
