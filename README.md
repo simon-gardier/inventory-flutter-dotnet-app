@@ -6,7 +6,7 @@
 /_/  /_/\__, / |___/\___/_/ /_/\__/\____/_/   \__, /  /_/  |_/ .___/ .___/ 
        /____/                                /____/         /_/   /_/      
 ```
-# MyVentory's app repository
+# MyVentory's app
 
 ## 🧪Documentation
 ### Tech stack (app)
